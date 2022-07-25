@@ -18,9 +18,10 @@ package main
 
 import (
 	"flag"
-	"github.com/kyma-project/manifest-operator/operator/pkg/types"
 	"os"
 	"time"
+
+	"github.com/kyma-project/manifest-operator/operator/pkg/types"
 
 	manifestv1alpha1 "github.com/kyma-project/manifest-operator/operator/api/v1alpha1"
 	v1 "k8s.io/api/core/v1"
@@ -64,10 +65,12 @@ func main() {
 	var metricsAddr string
 	var enableLeaderElection, verifyInstallation, customStateCheck bool
 	var probeAddr string
+	var listenerAddr string
 	var requeueSuccessInterval, requeueFailureInterval, requeueWaitingInterval time.Duration
 	var concurrentReconciles, workersConcurrentManifests int
 	flag.StringVar(&metricsAddr, "metrics-bind-address", ":2020", "The address the metric endpoint binds to.")
 	flag.StringVar(&probeAddr, "health-probe-bind-address", ":2021", "The address the probe endpoint binds to.")
+	flag.StringVar(&listenerAddr, "skr-listener-bind-address", ":2022", "The address the skr listener endpoint binds to.")
 	flag.BoolVar(&enableLeaderElection, "leader-elect", false,
 		"Enable leader election for controller manager. "+
 			"Enabling this will ensure there is only one active controller manager.")
@@ -153,7 +156,7 @@ func main() {
 			Failure: requeueFailureInterval,
 			Waiting: requeueWaitingInterval,
 		},
-	}).SetupWithManager(context, mgr); err != nil {
+	}).SetupWithManager(setupLog, context, mgr, listenerAddr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Manifest")
 		os.Exit(1)
 	}

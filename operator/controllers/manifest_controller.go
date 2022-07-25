@@ -20,11 +20,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"time"
+
+	"github.com/khlifi411/kyma-listener/listener"
 	"github.com/kyma-project/manifest-operator/operator/internal/pkg/prepare"
 	"github.com/kyma-project/manifest-operator/operator/internal/pkg/util"
 	"github.com/kyma-project/manifest-operator/operator/pkg/ratelimit"
 	"github.com/kyma-project/manifest-operator/operator/pkg/types"
-	"time"
 
 	"github.com/go-logr/logr"
 	"github.com/kyma-project/manifest-operator/operator/api/v1alpha1"
@@ -47,6 +49,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/ratelimiter"
 	"sigs.k8s.io/controller-runtime/pkg/source"
 )
+
+const componentName = "manifest"
 
 type RequeueIntervals struct {
 	Success time.Duration
@@ -391,19 +395,22 @@ func prepareArgs(deployInfo *manifest.DeployInfo) map[string]map[string]interfac
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *ManifestReconciler) SetupWithManager(ctx context.Context, mgr ctrl.Manager) error {
+func (r *ManifestReconciler) SetupWithManager(setupLog logr.Logger, ctx context.Context, mgr ctrl.Manager, listenerAddr string) error {
 	r.DeployChan = make(chan ManifestDeploy)
 	r.Workers.StartWorkers(ctx, r.DeployChan, r.HandleCharts)
 
 	// default config from kubebuilder
 	r.RestConfig = mgr.GetConfig()
 
-	return ctrl.NewControllerManagedBy(mgr).
+	controllerBuilder := ctrl.NewControllerManagedBy(mgr).
 		For(&v1alpha1.Manifest{}).
 		Watches(&source.Kind{Type: &v1.Secret{}}, handler.Funcs{}).
 		WithOptions(controller.Options{
 			RateLimiter:             ManifestRateLimiter(),
 			MaxConcurrentReconciles: r.MaxConcurrentReconciles,
-		}).
-		Complete(r)
+		})
+
+	controllerBuilder = listener.RegisterListenerComponent(setupLog, mgr, controllerBuilder, listenerAddr, &handler.EnqueueRequestForObject{}, componentName)
+
+	return controllerBuilder.Complete(r)
 }
